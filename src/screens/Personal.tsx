@@ -7,6 +7,7 @@ import { myths } from '../data/content';
 import type { Verdict } from '../data/types';
 import { useStore } from '../lib/store';
 import { useAiStatus } from '../lib/ai';
+import { Segmented } from '../components/liquid';
 
 const mv: Record<string, Verdict> = { true: 'good', partly: 'moderate', myth: 'bad' };
 
@@ -66,6 +67,11 @@ export function Profile() {
   const { profile, setProfile, theme, setTheme, ai, setAi } = useStore();
   const status = useAiStatus();
   const [newAllergy, setNewAllergy] = useState('');
+  const glassMode: 'liquid' | 'simple' = document.documentElement.classList.contains('supports-liquid') ? 'liquid' : 'simple';
+  const setGlassMode = (m: 'liquid' | 'simple') => {
+    try { localStorage.setItem('ahaara.glass', m); } catch { /* storage blocked */ }
+    setTimeout(() => location.reload(), 350); // glass filters are built at start-up
+  };
   const set = (patch: Partial<typeof profile>) => setProfile({ ...profile, ...patch });
 
   return (
@@ -113,11 +119,15 @@ export function Profile() {
           </select></div>
         <div className="divider" />
         <div className="row between"><span className="row"><Icon name="ruler" size={19} /><span style={{ fontWeight: 650 }}>Units</span></span>
-          <div className="seg-ctl"><button aria-pressed={profile.units === 'household'} onClick={() => set({ units: 'household' })}>Katori / tsp</button><button aria-pressed={profile.units === 'metric'} onClick={() => set({ units: 'metric' })}>Grams</button></div></div>
+          <Segmented label="Units" value={profile.units} onChange={(u) => set({ units: u })} options={[{ value: 'household', label: 'Katori / tsp' }, { value: 'metric', label: 'Grams' }]} /></div>
         <div className="divider" />
         <div className="row between"><span className="row"><Icon name={theme === 'dark' ? 'moon' : 'sun'} size={19} /><span style={{ fontWeight: 650 }}>Theme</span></span>
-          <div className="seg-ctl"><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}>Dark glass</button><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}>Frosted morning</button></div></div>
-        <p className="tiny faint">Animations follow your phone’s “reduce motion” setting.</p>
+          <Segmented label="Theme" value={theme} onChange={setTheme} options={[{ value: 'dark', label: 'Evening' }, { value: 'light', label: 'Daylight' }]} /></div>
+        <div className="divider" />
+        <div className="row between"><span className="row"><Icon name="spark" size={19} /><span style={{ fontWeight: 650 }}>Glass effects</span></span>
+          <Segmented label="Glass effects" value={glassMode} onChange={setGlassMode}
+            options={[{ value: 'liquid', label: 'Liquid' }, { value: 'simple', label: 'Simple' }]} /></div>
+        <p className="tiny faint">“Liquid” bends light through the glass (Chrome/Android). “Simple” is lighter on older phones. Animations follow your phone’s “reduce motion” setting.</p>
       </GlassCard>
       <GlassCard className="pad-lg stack">
         <div className="row between"><span className="row"><Icon name="spark" size={19} /><h2 className="h3">AI engine</h2></span>

@@ -8,6 +8,28 @@ every page. Glass panels lift the dark veil over it (blur + saturation + brightn
 `backdrop-filter`), so each panel is a lens onto the food below. Verdicts are inspector's
 stamps; numbers are set like a nutrition label.
 
+## Liquid Glass
+
+The navigation layer is built like Apple's Liquid Glass (iOS 26), on the web:
+
+- **Real refraction.** Each floating element computes its own displacement map: a convex
+  squircle rim that bends the backdrop using Snell's law (n = 1.5), with slight colour
+  dispersion. Chrome / Android render it through `backdrop-filter: url(#…)`; Safari and
+  Firefox get a frosted fallback. (`src/components/liquid.tsx`)
+- **Glass only where it belongs.** Tab bar, toolbars, search, sheets and lenses are Liquid
+  Glass; content sits on calmer frosted material, so text stays easy to read.
+- **iOS 26 behaviour.** A floating tab bar with a glass droplet that slides (and stretches)
+  to the active tab, shrinks while you scroll down, with Scan as a separate tinted action;
+  a tab-bar accessory on the Verdict page that folds in beside the tabs; floating toolbar
+  buttons over a scroll-edge blur; inset sheets you can drag down; a magnifying lens you can
+  drag along health ranges; a glass segmented-control thumb.
+- **Light that moves.** Rim highlights follow the cursor or the phone's tilt; glass lights up
+  from your fingertip and flexes when pressed; light haptics on Android.
+- **Page transitions.** Pages cross-fade and product packaging flies from the card to the
+  verdict page (View Transitions API).
+- **Performance switch.** Profile → Glass effects: *Liquid* or *Simple* (low-end phones
+  start on Simple). Reduced motion and reduced transparency are respected.
+
 ## Screens
 Home · Product verdict · Label scanner · Explain-simply articles (with "Didn't get it?"
 ladder) · Myth buster (swipe & flip cards, WhatsApp-forward check) · Compare · My

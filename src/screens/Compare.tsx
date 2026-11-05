@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AiNote, AiTag, BackBar, GlassCard, VerdictBadge } from '../components/kit';
 import { runTask, toComparePair, toContext, useAiStatus, type CompareAIT } from '../lib/ai';
 import { useStore } from '../lib/store';
+import { Segmented } from '../components/liquid';
 import { Icon } from '../components/Icon';
 import { comparePairs } from '../data/content';
 import type { ComparePair } from '../data/types';
@@ -93,9 +94,7 @@ export default function Compare() {
 
         <div className="stack">
           <span className="eyebrow">Which to pick — for your goal</span>
-          <div className="seg-ctl" role="group" aria-label="Goal">
-            {GOALS.map((g) => <button key={g} aria-pressed={goal === g} onClick={() => setGoal(g)}>{g}</button>)}
-          </div>
+          <Segmented label="Goal" value={goal} onChange={setGoal} options={GOALS.map((g) => ({ value: g, label: g }))} />
           <GlassCard level={2} tint={tie ? 'moderate' : 'good'} className="pad-lg stack page" key={pair.id + goal}>
             <div className="row between">
               <span className="eyebrow">{goal}</span>

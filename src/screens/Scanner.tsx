@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AiNote, AiTag, GlassCard, Sheet, VerdictBadge } from '../components/kit';
 import { Icon } from '../components/Icon';
+import { Liquid } from '../components/liquid';
 import { productById } from '../data/products';
 import type { Product } from '../data/types';
 import { runTask, shrinkImage, toContext, toProduct, useAiStatus, type LabelAIT } from '../lib/ai';
@@ -105,14 +106,15 @@ export default function Scanner() {
       </div>
 
       <div className="row between" style={{ position: 'absolute', top: 'max(16px, env(safe-area-inset-top))', left: 16, right: 16 }}>
-        <button className="icon-btn glass floating" aria-label="Close scanner" onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))} style={{ color: '#fff' }}><Icon name="close" size={20} /></button>
+        <Liquid as="button" className="glass-btn clear" dispersion aria-label="Close scanner" onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}><Icon name="close" size={20} /></Liquid>
         <GlassCard level={3} className="chip" style={{ color: '#fff', minHeight: 40 }}>
           <Icon name={aiCanRead ? 'spark' : 'scan'} size={16} />
           {scanning ? 'Reading the label…' : aiCanRead ? (cam === 'live' ? 'AI label reading' : 'Upload a label photo') : cam === 'live' ? 'Camera on · demo' : 'Demo label'}
         </GlassCard>
-        <button className="icon-btn glass floating" aria-label="Upload a photo" onClick={() => file.current?.click()} style={{ color: '#fff' }} disabled={!aiCanRead}>
+        <Liquid as="button" className="glass-btn clear" dispersion aria-label="Upload a photo" onClick={() => file.current?.click()} disabled={!aiCanRead}
+          style={aiCanRead ? undefined : { opacity: 0.5 }}>
           <Icon name="image" size={20} />
-        </button>
+        </Liquid>
         <input ref={file} type="file" accept="image/*" capture="environment" hidden onChange={onFile} />
       </div>
 

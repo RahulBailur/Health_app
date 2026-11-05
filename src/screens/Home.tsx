@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { BrandMark, FloatingSearch } from '../components/chrome';
 import { Collapsible, EvidenceChip, GlassCard, ProductMini, VerdictBadge } from '../components/kit';
 import { Icon } from '../components/Icon';
+import { Liquid, haptic } from '../components/liquid';
 import { products } from '../data/products';
 import { myths } from '../data/content';
 import { useStore } from '../lib/store';
@@ -34,10 +35,11 @@ export default function Home() {
         <Link to="/" className="brand hide-desktop"><BrandMark />ahaara</Link>
         <span className="eyebrow show-desktop">{today}</span>
         <div className="row" style={{ gap: 8 }}>
-          <button className="icon-btn" aria-label={theme === 'dark' ? 'Switch to daylight theme' : 'Switch to evening theme'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+          <Liquid as="button" className="glass-btn" dispersion aria-label={theme === 'dark' ? 'Switch to daylight theme' : 'Switch to evening theme'}
+            onClick={() => { haptic(); setTheme(theme === 'dark' ? 'light' : 'dark'); }}>
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={19} />
-          </button>
-          <Link to="/profile" className="icon-btn" aria-label="Profile" style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 18 }}>{profile.name.charAt(0)}</Link>
+          </Liquid>
+          <Liquid as={Link} to="/profile" className="glass-btn" dispersion aria-label="Profile" style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 18 }}>{profile.name.charAt(0)}</Liquid>
         </div>
       </header>
 

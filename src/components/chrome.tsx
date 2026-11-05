@@ -1,13 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { GlassCard } from './kit';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
 import { BrandMark, Thali } from './Art';
+import { Liquid, haptic } from './liquid';
 import { useStore } from '../lib/store';
 
-/* The table: two thalis under a veil. They turn as you scroll, so the colour
-   seen through every glass panel keeps changing. Plus the SVG refraction
-   filter used by floating glass. */
+/* The table: two thalis under a veil. They turn as you scroll, so what you see
+   through every piece of glass keeps changing. */
 export function Ambient() {
   useEffect(() => {
     let raf = 0;
@@ -25,44 +24,86 @@ export function Ambient() {
         <div className="veil" />
       </div>
       <div className="grain" aria-hidden />
-      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
-        <filter id="liquid-refract" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
-          <feTurbulence type="fractalNoise" baseFrequency="0.008 0.014" numOctaves="2" seed="7" result="noise" />
-          <feGaussianBlur in="noise" stdDeviation="2" result="soft" />
-          <feDisplacementMap in="SourceGraphic" in2="soft" scale="40" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </svg>
     </>
   );
 }
 
 export { BrandMark };
 
-const NAV: { to: string; label: string; icon: IconName }[] = [
+/* ---------------------------------------------- tab bar accessory slot ------ */
+/* Like iOS 26's tab bar accessory: a page can park a small glass bar above the
+   tab bar; it folds in beside the tabs when the bar shrinks on scroll. */
+const AccessoryCtx = createContext<{ node: ReactNode; set: (n: ReactNode) => void }>({ node: null, set: () => undefined });
+export function AccessoryProvider({ children }: { children: ReactNode }) {
+  const [node, set] = useState<ReactNode>(null);
+  return <AccessoryCtx.Provider value={{ node, set }}>{children}</AccessoryCtx.Provider>;
+}
+export function useTabAccessory(node: ReactNode, deps: unknown[]) {
+  const { set } = useContext(AccessoryCtx);
+  useEffect(() => { set(node); return () => set(null); }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/* ------------------------------------------------------------ tab bar ------- */
+const TABS: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Home', icon: 'home' },
   { to: '/explore', label: 'Explore', icon: 'compass' },
-  { to: '/scan', label: 'Scan', icon: 'scan' },
   { to: '/saved', label: 'Saved', icon: 'bookmark' },
   { to: '/profile', label: 'Profile', icon: 'user' },
 ];
 
-export function GlassBottomNav() {
+const activeTab = (path: string) =>
+  path === '/' ? '/' : TABS.find((t) => t.to !== '/' && path.startsWith(t.to))?.to
+    ?? (/^\/(ask|article|myths|compare|conditions|meal-plan|product)/.test(path) ? '/explore' : '/');
+
+/** iOS-style floating glass tab bar. A droplet slides to the active tab; the bar
+    shrinks to the current tab while you scroll down. Scan sits apart as the
+    tinted primary action. */
+export function TabBar() {
+  const { pathname } = useLocation();
+  const { node: accessory } = useContext(AccessoryCtx);
+  const current = activeTab(pathname);
+  const [drop, setDrop] = useState<{ x: number; w: number } | null>(null);
+  const [moving, setMoving] = useState(false);
+  const first = useRef(true);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = document.querySelector<HTMLElement>(`.tabbar [data-tab="${current}"]`);
+      if (el) setDrop({ x: el.offsetLeft, w: el.offsetWidth });
+    };
+    measure();
+    const bar = document.querySelector('.tabbar');
+    const ro = new ResizeObserver(measure); // the bar grows back after minimising
+    if (bar) ro.observe(bar);
+    if (first.current) { first.current = false; return () => ro.disconnect(); }
+    setMoving(true);
+    const t = setTimeout(() => setMoving(false), 560);
+    return () => { clearTimeout(t); ro.disconnect(); };
+  }, [current]);
+
+  const expand = () => { if (document.documentElement.dataset.dir === 'down') { document.documentElement.dataset.dir = 'up'; haptic(); } };
+
   return (
-    <GlassCard as="nav" level={3} liquid className="bottom-nav" aria-label="Main">
-      {NAV.map((n) =>
-        n.to === '/scan' ? (
-          <Link key={n.to} to={n.to} className="fab" aria-label="Scan a label"><Icon name="scan" size={24} stroke={2.2} /></Link>
-        ) : (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Icon name={n.icon} size={22} />
-            <span>{n.label}</span>
+    <nav className={`tabbar-wrap ${accessory ? 'has-accessory' : ''}`} aria-label="Main">
+      {accessory && <Liquid as="div" className="accessory" bezel={16}>{accessory}</Liquid>}
+      <Liquid as="div" className="tabbar" bezel={20} onClickCapture={expand}>
+        {drop && <span className={`tab-droplet ${moving ? 'moving' : ''}`} style={{ transform: `translateX(${drop.x}px)`, width: drop.w }} aria-hidden />}
+        {TABS.map((t) => (
+          <NavLink key={t.to} to={t.to} end={t.to === '/'} data-tab={t.to} onClick={() => haptic()}
+            className={() => `tab ${current === t.to ? 'active' : ''}`} aria-current={current === t.to ? 'page' : undefined}>
+            <Icon name={t.icon} size={23} stroke={current === t.to ? 2.1 : 1.8} />
+            <span className="lbl">{t.label}</span>
           </NavLink>
-        ),
-      )}
-    </GlassCard>
+        ))}
+      </Liquid>
+      <Liquid as={Link} to="/scan" className="tab-action" tint="turmeric" bezel={18} dispersion aria-label="Scan a label" onClick={() => haptic(12)}>
+        <Icon name="scan" size={26} stroke={2.2} />
+      </Liquid>
+    </nav>
   );
 }
 
+/* ------------------------------------------------------------ sidebar ------- */
 const SIDE: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Home', icon: 'home' },
   { to: '/explore', label: 'Explore', icon: 'compass' },
@@ -78,7 +119,7 @@ const SIDE: { to: string; label: string; icon: IconName }[] = [
 export function Sidebar() {
   const { theme, setTheme } = useStore();
   return (
-    <GlassCard as="aside" level={3} className="sidebar" aria-label="Sidebar">
+    <Liquid as="aside" radius={30} bezel={22} strength={0.6} className="sidebar" aria-label="Sidebar">
       <Link to="/" className="brand" style={{ padding: '0 12px 22px' }}><BrandMark />ahaara</Link>
       {SIDE.map((n) => (
         <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `side-link ${isActive ? 'active' : ''}`}>
@@ -91,10 +132,11 @@ export function Sidebar() {
         </button>
         <p className="tiny faint" style={{ padding: '0 14px' }}>We explain, we don’t diagnose.</p>
       </div>
-    </GlassCard>
+    </Liquid>
   );
 }
 
+/* ------------------------------------------------------------- search ------- */
 export function FloatingSearch({ initial = '', autoFocus = false }: { initial?: string; autoFocus?: boolean }) {
   const [q, setQ] = useState(initial);
   const [listening, setListening] = useState(false);
@@ -110,11 +152,11 @@ export function FloatingSearch({ initial = '', autoFocus = false }: { initial?: 
     r.lang = 'en-IN'; r.interimResults = false;
     r.onresult = (e) => { const t = e.results[0][0].transcript; setQ(t); nav(`/ask?q=${encodeURIComponent(t)}`); };
     r.onend = () => setListening(false);
-    setListening(true); r.start();
+    setListening(true); haptic(); r.start();
   };
 
   return (
-    <GlassCard as="form" level={3} liquid className="search" onSubmit={submit} role="search">
+    <Liquid as="form" className="search" bezel={22} dispersion onSubmit={submit} role="search">
       <Icon name="search" size={20} style={{ color: 'var(--text-2)', flex: 'none' }} />
       <label className="sr-only" htmlFor="ask">Ask anything</label>
       <input
@@ -126,6 +168,6 @@ export function FloatingSearch({ initial = '', autoFocus = false }: { initial?: 
         <Icon name="mic" size={20} />
       </button>
       <Link to="/scan" className="icon-btn" aria-label="Scan a label"><Icon name="camera" size={20} /></Link>
-    </GlassCard>
+    </Liquid>
   );
 }

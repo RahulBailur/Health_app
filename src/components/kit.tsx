@@ -1,10 +1,11 @@
-import {
+import React, {
   useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ElementType, type ReactNode, type HTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Egg, Icon, Teaspoon, type IconName } from './Icon';
 import { ProductArt } from './Art';
+import { Liquid, haptic } from './liquid';
 import type { Alternative, Evidence, LadderStep, Product, ScoreItem, Verdict } from '../data/types';
 import { glossary } from '../data/content';
 
@@ -15,8 +16,11 @@ export function GlassCard({
 }: {
   level?: Level; as?: ElementType; press?: boolean; liquid?: boolean; tint?: Verdict; className?: string; children?: ReactNode;
 } & HTMLAttributes<HTMLElement> & Record<string, unknown>) {
-  const cls = ['glass', level === 2 && 'raised', level === 3 && 'floating', press && 'pressable', liquid && 'liquid', tint && `tint-${tint}`, className]
-    .filter(Boolean).join(' ');
+  // Floating elements are real Liquid Glass; content cards use the calmer frosted material.
+  if (level === 3 || liquid) {
+    return <Liquid as={Tag} radius={24} bezel={16} className={[press && 'flex', className].filter(Boolean).join(' ')} {...rest}>{children}</Liquid>;
+  }
+  const cls = ['glass', level === 2 && 'raised', press && 'pressable', tint && `tint-${tint}`, className].filter(Boolean).join(' ');
   return <Tag className={cls} {...rest}>{children}</Tag>;
 }
 
@@ -274,7 +278,8 @@ export function AlternativeCard({ alt }: { alt: Alternative }) {
 
 /* ------------------------------------------------------- ProductThumb ---- */
 export function ProductThumb({ p, height = 112, className = '' }: { p: Product; height?: number; className?: string }) {
-  return <div className={`art ${className}`} style={{ height }}><ProductArt kind={p.art} c1={p.palette[0]} c2={p.palette[1]} /></div>;
+  // shared element: the packaging flies between the card and the verdict page
+  return <div className={`art ${className}`} style={{ height, viewTransitionName: `art-${p.id}` } as CSSProperties}><ProductArt kind={p.art} c1={p.palette[0]} c2={p.palette[1]} /></div>;
 }
 
 export function ProductMini({ p }: { p: Product }) {
@@ -291,21 +296,47 @@ export function ProductMini({ p }: { p: Product }) {
 }
 
 /* ------------------------------------------------------------- RangeBar --- */
-export function RangeBar({ min, max, zones, value, unit }: {
+export function RangeBar({ min, max, zones, value, unit, onChange, label }: {
   min: number; max: number; zones: { upTo: number; label: string; tone: Verdict }[]; value: number; unit: string;
+  /** when given, a glass lens can be dragged along the bar to try a value */
+  onChange?: (v: number) => void; label?: string;
 }) {
   const span = max - min;
   let prev = min;
   const pct = Math.max(0, Math.min(100, ((value - min) / span) * 100));
+  const trackRef = useRef<HTMLDivElement>(null);
+  const zone = zones.find((z) => value < z.upTo) ?? zones[zones.length - 1];
+  const step = span / 100;
+  const setFromX = (clientX: number) => {
+    const r = trackRef.current?.getBoundingClientRect();
+    if (!r || !onChange) return;
+    const v = min + Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * span;
+    const rounded = Math.round(v * 10) / 10;
+    if (zones.some((z) => (value < z.upTo) !== (rounded < z.upTo))) haptic(6);
+    onChange(rounded);
+  };
+  const dragging = useRef(false);
   return (
-    <div className="range" role="img" aria-label={`${value} ${unit}`}>
-      <div className="marker num" style={{ left: `${pct}%` }}><b>{value} {unit}</b><i /></div>
-      <div className="track">
+    <div className={`range ${onChange ? 'interactive' : ''}`}
+      onPointerDown={onChange ? (e) => { dragging.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); setFromX(e.clientX); } : undefined}
+      onPointerMove={onChange ? (e) => { if (dragging.current) setFromX(e.clientX); } : undefined}
+      onPointerUp={() => { dragging.current = false; }} onPointerCancel={() => { dragging.current = false; }}
+      role={onChange ? undefined : 'img'} aria-label={onChange ? undefined : `${value} ${unit}`}>
+      <div className="marker num" style={{ left: `${pct}%` }}><b>{value} {unit}</b>{!onChange && <i />}</div>
+      <div className="track" ref={trackRef}>
         {zones.map((z) => {
           const w = ((z.upTo - prev) / span) * 100; prev = z.upTo;
-          return <div key={z.label} className="seg" style={{ width: `${w}%`, background: vColor[z.tone] }} />;
+          return <div key={z.label} className="zone" style={{ width: `${w}%`, background: vColor[z.tone] }} />;
         })}
       </div>
+      {onChange && (
+        <Liquid className="range-thumb" bezel={9} magnify={0.32} strength={1} dispersion style={{ left: `${pct}%` }}
+          role="slider" tabIndex={0} aria-label={label ?? 'Value'} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${value} ${unit}, ${zone.label}`}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? step : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -step : 0;
+            if (d) { e.preventDefault(); onChange(Math.round(Math.max(min, Math.min(max, value + d)) * 10) / 10); }
+          }} />
+      )}
       <div className="labels" style={{ flexWrap: 'wrap', gap: '6px 16px', marginTop: 12 }}>
         {zones.map((z, i) => {
           const from = i === 0 ? min : zones[i - 1].upTo;
@@ -375,35 +406,60 @@ export function ExplainAgainLadder({ steps, step, onStep }: { steps: LadderStep[
 
 /* ------------------------------------------------------------- Sheet ------ */
 export function Sheet({ open, onClose, children, label }: { open: boolean; onClose: () => void; children: ReactNode; label: string }) {
+  const [drag, setDrag] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const start = useRef<{ y: number; t: number } | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    setDrag(0);
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, [open, onClose]);
   if (!open) return null;
+
+  const onDown = (e: React.PointerEvent) => { start.current = { y: e.clientY, t: performance.now() }; setDragging(true); (e.currentTarget as Element).setPointerCapture(e.pointerId); };
+  const onMove = (e: React.PointerEvent) => { if (start.current) setDrag(Math.max(0, e.clientY - start.current.y)); };
+  const onUp = (e: React.PointerEvent) => {
+    if (!start.current) return;
+    const dy = e.clientY - start.current.y;
+    const v = dy / Math.max(1, performance.now() - start.current.t); // px per ms
+    start.current = null; setDragging(false);
+    if (dy > 140 || v > 0.8) { haptic(); onClose(); } else setDrag(0);
+  };
+
   return createPortal(
     <>
-      <div className="scrim" onClick={onClose} />
-      <GlassCard level={2} className="sheet" role="dialog" aria-modal="true" aria-label={label}>
-        <div className="grabber" />
+      <div className="scrim" onClick={onClose} style={{ opacity: Math.max(0.2, 1 - drag / 400) }} />
+      <Liquid radius={36} bezel={22} strength={0.7} className={`sheet ${dragging ? 'dragging' : ''}`} role="dialog" aria-modal="true" aria-label={label}
+        style={{ '--drag': `${drag}px` } as CSSProperties}>
+        <div className="sheet-drag" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+          <div className="grabber" />
+        </div>
         {children}
-      </GlassCard>
+      </Liquid>
     </>,
     document.body,
   );
 }
 
 /* ------------------------------------------------------------ PageHeader --- */
+/** Floating Liquid Glass toolbar: back button and a grouped action capsule, no bar behind them. */
 export function BackBar({ title, right, to }: { title?: string; right?: ReactNode; to?: string }) {
   return (
-    <div className="row between" style={{ minHeight: 48 }}>
-      <Link to={to ?? '/'} className="icon-btn" aria-label="Back" onClick={(e) => { if (!to && window.history.length > 1) { e.preventDefault(); window.history.back(); } }}>
-        <Icon name="chevronLeft" size={20} />
-      </Link>
-      {title && <div className="eyebrow">{title}</div>}
-      <div className="row">{right ?? <span style={{ width: 44 }} />}</div>
-    </div>
+    <>
+      <div className="toolbar-spacer" />
+      {/* portal: a transformed ancestor (page animations) would otherwise make "fixed" scroll with the page */}
+      {createPortal(<div className="toolbar">
+        <Liquid as={Link} to={to ?? '/'} className="tb-btn" aria-label="Back" data-back={to ? undefined : ''} dispersion
+          onClick={(e: React.MouseEvent) => { if (!to && window.history.length > 1) { e.preventDefault(); window.history.back(); } }}>
+          <Icon name="chevronLeft" size={21} stroke={2} />
+        </Liquid>
+        {title && <div className="tb-title">{title}</div>}
+        {right ? <Liquid className="tb-group" dispersion>{right}</Liquid> : <span className="tb-btn" aria-hidden />}
+      </div>, document.body)}
+    </>
   );
 }
 

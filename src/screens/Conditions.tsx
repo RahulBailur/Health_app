@@ -47,12 +47,8 @@ export default function ConditionPage() {
           {c.range && (
             <GlassCard className="pad-lg stack">
               <div className="row between"><h2 className="h3">What your numbers mean</h2><span className="tiny faint">{c.range.label}</span></div>
-              <RangeBar {...c.range} value={v} />
-              <label className="small muted row" style={{ gap: 10, marginTop: 6 }}>
-                <span style={{ flex: 'none' }}>Try your value</span>
-                <input type="range" min={c.range.min} max={c.range.max} step={(c.range.max - c.range.min) / 100} value={v}
-                  onChange={(e) => setValue(Math.round(Number(e.target.value) * 10) / 10)} style={{ flex: 1, accentColor: '#A3E635', minHeight: 44 }} />
-              </label>
+              <RangeBar {...c.range} value={v} onChange={setValue} label={`Your ${c.range.label}`} />
+              <p className="tiny faint row" style={{ gap: 6 }}><Icon name="arrowRight" size={13} />Drag the lens to try your own number</p>
             </GlassCard>
           )}
           <GlassCard className="pad-lg stack">

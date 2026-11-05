@@ -1,22 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  AiNote, AiTag, AlternativeCard, BackBar, Collapsible, FrostedSkeleton, GlassCard, ProductThumb, ProsConsPanel, ProteinTranslator,
+  AiNote, AiTag, AlternativeCard, BackBar, Collapsible, GlassCard, ProductThumb, ProsConsPanel, ProteinTranslator,
   SaltRing, ScorecardRow, SplitVerdict, SugarTranslator, VerdictBadge,
 } from '../components/kit';
 import { Icon } from '../components/Icon';
 import { productById } from '../data/products';
 import { useStore } from '../lib/store';
+import { Segmented } from '../components/liquid';
+import { useTabAccessory } from '../components/chrome';
+import { ProductArt } from '../components/Art';
 
 export default function Verdict() {
   const { id = '' } = useParams();
   const { saved, toggleSaved, profile, aiProducts } = useStore();
   const p = productById(id) ?? aiProducts[id];
   const [per100, setPer100] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
-  useEffect(() => { setLoading(true); const t = setTimeout(() => setLoading(false), 550); window.scrollTo(0, 0); return () => clearTimeout(t); }, [id]);
+  useEffect(() => { window.scrollTo(0, 0); }, [id]);
+
+  // bottom accessory: the product stays in reach while you read
+  useTabAccessory(p ? (
+    <>
+      <span className="acc-art"><ProductArt kind={p.art} c1={p.palette[0]} c2={p.palette[1]} /></span>
+      <span className="grow" style={{ minWidth: 0 }}>
+        <span className="acc-name" style={{ display: 'block' }}>{p.name}</span>
+        <VerdictBadge v={p.split ? 'moderate' : p.verdict} size="sm" label={p.split ? 'Split' : undefined} tilt={0} />
+      </span>
+      <Link className="acc-btn" to={`/ask?q=${encodeURIComponent(`Is ${p.name.toLowerCase()} good for me?`)}`} aria-label={`Ask about ${p.name}`}>
+        <Icon name="bubble" size={17} /><span>Ask</span>
+      </Link>
+    </>
+  ) : null, [p?.id]);
 
   if (!p) return <div className="page stack"><BackBar /><GlassCard className="pad-lg">We haven’t checked this product yet. <Link to="/scan">Scan its label</Link> instead.</GlassCard></div>;
 
@@ -31,16 +47,6 @@ export default function Verdict() {
     const data = { title: `${p.name} — Ahaara verdict`, text: p.oneLine, url: location.href };
     try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(location.href); } catch { /* dismissed */ }
   };
-
-  if (loading) {
-    return (
-      <div className="page stack">
-        <BackBar title="Verdict" />
-        <GlassCard className="pad-lg stack"><div className="skel" style={{ height: 180, borderRadius: 18 }} /><FrostedSkeleton lines={3} height={16} /></GlassCard>
-        <GlassCard className="pad-lg"><FrostedSkeleton lines={4} /></GlassCard>
-      </div>
-    );
-  }
 
   return (
     <div className="page stack-lg">
@@ -106,10 +112,8 @@ export default function Verdict() {
           <GlassCard className="pad-lg">
             <div className="row between wrap" style={{ gap: 12 }}>
               <h2 className="h2">The label, <em style={{ fontStyle: 'italic', color: 'var(--accent)' }}>translated</em></h2>
-              <div className="seg-ctl" role="group" aria-label="Basis">
-                <button aria-pressed={!per100} onClick={() => setPer100(false)}>Per {p.serving.split(' (')[0]}</button>
-                <button aria-pressed={per100} onClick={() => setPer100(true)}>100 g</button>
-              </div>
+              <Segmented label="Basis" value={per100 ? '100' : 'serving'} onChange={(v) => setPer100(v === '100')}
+                options={[{ value: 'serving', label: `Per ${p.serving.split(' (')[0]}` }, { value: '100', label: '100 g' }]} />
             </div>
             <div className="rule-thick" />
             <div key={String(per100)}>

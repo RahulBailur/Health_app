@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BackBar, GlassCard, VerdictBadge } from '../components/kit';
+import { AiNote, AiTag, BackBar, GlassCard, VerdictBadge } from '../components/kit';
+import { runTask, toComparePair, toContext, useAiStatus, type CompareAIT } from '../lib/ai';
+import { useStore } from '../lib/store';
 import { Icon } from '../components/Icon';
 import { comparePairs } from '../data/content';
 import type { ComparePair } from '../data/types';
@@ -29,8 +31,24 @@ export function CompareTable({ pair }: { pair: ComparePair }) {
 
 export default function Compare() {
   const [params, setParams] = useSearchParams();
-  const pair = comparePairs.find((p) => p.id === params.get('pair')) ?? comparePairs[0];
+  const [aiPair, setAiPair] = useState<{ pair: ComparePair; by: string } | null>(null);
+  const pair = aiPair?.pair ?? comparePairs.find((p) => p.id === params.get('pair')) ?? comparePairs[0];
   const [goal, setGoal] = useState('Muscle');
+  const status = useAiStatus();
+  const { ai, profile } = useStore();
+  const [a, setA] = useState('');
+  const [b, setB] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const compareAnything = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!a.trim() || !b.trim()) return;
+    setBusy(true); setErr('');
+    const r = await runTask<CompareAIT>('compare', { a: a.trim(), b: b.trim(), profile: toContext(profile) }, ai);
+    setBusy(false);
+    if (r.ok) setAiPair({ pair: toComparePair(r.data), by: r.providerLabel });
+    else setErr(r.message ?? 'Couldn’t compare those right now.');
+  };
   const pick = pair.picks[goal];
   const tie = pick.pick === 'tie';
 
@@ -39,9 +57,23 @@ export default function Compare() {
       <BackBar title="Compare" />
       <div className="row wrap" style={{ gap: 8 }}>
         {comparePairs.map((p) => (
-          <button key={p.id} className="chip tap" aria-pressed={p.id === pair.id} onClick={() => setParams({ pair: p.id })}>{p.a} vs {p.b}</button>
+          <button key={p.id} className="chip tap" aria-pressed={p.id === pair.id} onClick={() => { setAiPair(null); setParams({ pair: p.id }); }}>{p.a} vs {p.b}</button>
         ))}
       </div>
+
+      {status?.ready && (
+        <GlassCard as="form" className="pad stack" onSubmit={compareAnything} style={{ gap: 10 }}>
+          <span className="eyebrow">Compare anything</span>
+          <div className="row" style={{ gap: 8 }}>
+            <input value={a} onChange={(e) => setA(e.target.value)} placeholder="e.g. poha" aria-label="First food" className="chip tap grow" style={{ border: 0, outline: 0, minWidth: 0 }} maxLength={120} />
+            <span className="faint small">vs</span>
+            <input value={b} onChange={(e) => setB(e.target.value)} placeholder="e.g. upma" aria-label="Second food" className="chip tap grow" style={{ border: 0, outline: 0, minWidth: 0 }} maxLength={120} />
+          </div>
+          <button className="btn btn-primary" disabled={busy || !a.trim() || !b.trim()}>{busy ? 'Comparing…' : 'Compare'}</button>
+          {err && <p className="small" style={{ color: 'var(--bad)' }}>{err}</p>}
+        </GlassCard>
+      )}
+      {aiPair && <div className="row between"><AiTag provider={aiPair.by} /><span className="illus">estimates</span></div>}
 
       <div className="two-col">
         <div className="stack">
@@ -76,6 +108,7 @@ export default function Compare() {
             <Icon name="bulb" size={20} style={{ color: 'var(--turmeric)', flex: 'none' }} />
             <p className="small muted">Swaps only help if you actually enjoy the new food. The best choice is the one you’ll keep eating.</p>
           </GlassCard>
+          {aiPair && <AiNote />}
         </div>
       </div>
     </div>

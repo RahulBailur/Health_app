@@ -1,16 +1,9 @@
 import { products } from '../data/products';
 import { articles, comparePairs, conditions, myths } from '../data/content';
 
-/* Red-flag phrases that should always surface the emergency banner first. */
-const EMERGENCY = [
-  /chest (pain|tight|pressure)/i, /heart attack/i, /stroke/i, /face (droop|drooping)/i, /slurred speech/i,
-  /can'?t breathe|cannot breathe|difficulty breathing|short(ness)? of breath/i, /faint(ed|ing)?|passed out|unconscious/i,
-  /anaphyla|throat (swelling|closing)|swollen (lips|tongue|throat)|severe allergic/i, /seizure|fits/i,
-  /suicid|kill myself|self.?harm/i, /overdose|poison(ed|ing)?/i, /vomiting blood|black stool/i,
-];
+import { isEmergency, mentionsBloodThinner, needsInteractionWarning } from '../../shared/safety';
 
-const BLOOD_THINNERS = /blood thinner|warfarin|acitrom|acenocoumarol|apixaban|rivaroxaban|dabigatran|clopidogrel|aspirin|ecosprin/i;
-const INTERACTING = /fish oil|omega|turmeric|curcumin|ginkgo|garlic (pill|capsule|supplement)|vitamin e|vitamin k|green tea extract|supplement|ashwagandha/i;
+export { isEmergency, mentionsBloodThinner, needsInteractionWarning };
 
 export type Hit =
   | { type: 'product'; id: string; title: string; sub: string }
@@ -19,9 +12,6 @@ export type Hit =
   | { type: 'condition'; id: string; title: string; sub: string }
   | { type: 'compare'; id: string; title: string; sub: string };
 
-export function isEmergency(q: string) { return EMERGENCY.some((r) => r.test(q)); }
-export function needsInteractionWarning(q: string) { return BLOOD_THINNERS.test(q) && INTERACTING.test(q); }
-export function mentionsBloodThinner(q: string) { return BLOOD_THINNERS.test(q); }
 
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
 const STOP = new Set(['the', 'and', 'for', 'good', 'bad', 'with', 'are', 'can', 'what', 'does', 'how', 'much', 'should', 'eat', 'about', 'safe', 'healthy', 'better', 'than', 'this', 'that', 'have']);

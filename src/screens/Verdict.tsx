@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  AlternativeCard, BackBar, Collapsible, FrostedSkeleton, GlassCard, ProductThumb, ProsConsPanel, ProteinTranslator,
+  AiNote, AiTag, AlternativeCard, BackBar, Collapsible, FrostedSkeleton, GlassCard, ProductThumb, ProsConsPanel, ProteinTranslator,
   SaltRing, ScorecardRow, SplitVerdict, SugarTranslator, VerdictBadge,
 } from '../components/kit';
 import { Icon } from '../components/Icon';
@@ -10,8 +10,8 @@ import { useStore } from '../lib/store';
 
 export default function Verdict() {
   const { id = '' } = useParams();
-  const p = productById(id);
-  const { saved, toggleSaved, profile } = useStore();
+  const { saved, toggleSaved, profile, aiProducts } = useStore();
+  const p = productById(id) ?? aiProducts[id];
   const [per100, setPer100] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -71,6 +71,7 @@ export default function Verdict() {
               <ProductThumb p={p} height={196} />
             </div>
             <div className="stack" style={{ gap: 6, textAlign: 'center', alignItems: 'center' }}>
+              {p.ai && <AiTag provider={p.ai.provider} confidence={p.ai.confidence} />}
               <span className="eyebrow">{p.category} · {p.pack}</span>
               <h1 className="h1">{p.name}</h1>
               <p className="small muted">{p.variant}</p>
@@ -189,6 +190,7 @@ export default function Verdict() {
               <Icon name="info" size={16} style={{ flex: 'none', marginTop: 3 }} />
               Based on the current label. Recipes change — check these 3 numbers on your pack: sugar, protein, and the first ingredient.
             </p>
+            {p.ai && <AiNote />}
           </GlassCard>
 
           <GlassCard className={`pad ${sourcesOpen ? 'open' : ''}`}>

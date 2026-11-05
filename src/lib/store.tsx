@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { Product } from '../data/types';
 
 export type Theme = 'dark' | 'light';
 export interface Profile {
@@ -17,6 +18,12 @@ interface Store {
   toggleSaved: (key: string) => void;
   profile: Profile;
   setProfile: (p: Profile) => void;
+  /** AI settings: chosen engine ("auto" or a provider id) and optional access code */
+  ai: { provider: string; code: string };
+  setAi: (a: { provider: string; code: string }) => void;
+  /** Verdicts the AI wrote, kept on this device so they can be reopened and saved */
+  aiProducts: Record<string, Product>;
+  addAiProduct: (p: Product) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -43,6 +50,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     read('ahaara.saved', ['product:chocolate-protein-drink', 'product:ragi-flour', 'myth:jaggery-better', 'product:packaged-fruit-juice', 'product:herbal-slimming-tea', 'myth:curd-night']),
   );
   const [profile, setProfileState] = useState<Profile>(() => read('ahaara.profile', defaultProfile));
+  const [ai, setAi] = useState(() => read('ahaara.ai', { provider: 'auto', code: '' }));
+  const [aiProducts, setAiProducts] = useState<Record<string, Product>>(() => read('ahaara.aiProducts', {}));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -51,14 +60,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [theme]);
   useEffect(() => write('ahaara.saved', saved), [saved]);
   useEffect(() => write('ahaara.profile', profile), [profile]);
+  useEffect(() => write('ahaara.ai', ai), [ai]);
+  useEffect(() => write('ahaara.aiProducts', aiProducts), [aiProducts]);
+  const addAiProduct = useCallback((p: Product) => setAiProducts((m) => ({ ...m, [p.id]: p })), []);
 
   const toggleSaved = useCallback((key: string) => {
     setSaved((s) => (s.includes(key) ? s.filter((k) => k !== key) : [key, ...s]));
   }, []);
 
   const value = useMemo(
-    () => ({ theme, setTheme: setThemeState, saved, toggleSaved, profile, setProfile: setProfileState }),
-    [theme, saved, toggleSaved, profile],
+    () => ({ theme, setTheme: setThemeState, saved, toggleSaved, profile, setProfile: setProfileState, ai, setAi, aiProducts, addAiProduct }),
+    [theme, saved, toggleSaved, profile, ai, aiProducts, addAiProduct],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

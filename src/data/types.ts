@@ -46,6 +46,8 @@ export interface Product {
   ingredients: string;
   allergens: string[];
   sources: string[];
+  /** set when an AI wrote this verdict */
+  ai?: { provider: string; confidence: 'high' | 'medium' | 'low' };
 }
 
 export interface Myth {

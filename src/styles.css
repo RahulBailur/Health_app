@@ -488,3 +488,5 @@ button.chip:active { transform: scale(0.96); }
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
   .table .thali { transform: none !important; }
 }
+.caret { display: inline-block; margin-left: 2px; color: var(--accent); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }

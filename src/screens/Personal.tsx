@@ -6,15 +6,16 @@ import { productById } from '../data/products';
 import { myths } from '../data/content';
 import type { Verdict } from '../data/types';
 import { useStore } from '../lib/store';
+import { useAiStatus } from '../lib/ai';
 
 const mv: Record<string, Verdict> = { true: 'good', partly: 'moderate', myth: 'bad' };
 
 export function Saved() {
-  const { saved, toggleSaved } = useStore();
+  const { saved, toggleSaved, aiProducts } = useStore();
   const [filter, setFilter] = useState<Verdict | 'all'>('all');
   const items = saved.map((k) => {
     const [type, id] = k.split(':');
-    if (type === 'product') { const p = productById(id); return p && { k, type, v: p.split ? 'moderate' as Verdict : p.verdict, p }; }
+    if (type === 'product') { const p = productById(id) ?? aiProducts[id]; return p && { k, type, v: p.split ? 'moderate' as Verdict : p.verdict, p }; }
     const m = myths.find((x) => x.id === id); return m && { k, type, v: mv[m.verdict], m };
   }).filter(Boolean) as { k: string; type: string; v: Verdict; p?: ReturnType<typeof productById>; m?: (typeof myths)[number] }[];
   const shown = items.filter((i) => filter === 'all' || i.v === filter);
@@ -62,7 +63,8 @@ const DIETS = ['Vegetarian', 'Non-vegetarian', 'Vegan', 'Jain', 'Eggetarian'];
 const COND = ['Prediabetes', 'Diabetes', 'BP', 'Cholesterol', 'Thyroid', 'PCOS', 'Pregnancy'];
 
 export function Profile() {
-  const { profile, setProfile, theme, setTheme } = useStore();
+  const { profile, setProfile, theme, setTheme, ai, setAi } = useStore();
+  const status = useAiStatus();
   const [newAllergy, setNewAllergy] = useState('');
   const set = (patch: Partial<typeof profile>) => setProfile({ ...profile, ...patch });
 
@@ -117,6 +119,30 @@ export function Profile() {
           <div className="seg-ctl"><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}>Dark glass</button><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}>Frosted morning</button></div></div>
         <p className="tiny faint">Animations follow your phone’s “reduce motion” setting.</p>
       </GlassCard>
+      <GlassCard className="pad-lg stack">
+        <div className="row between"><span className="row"><Icon name="spark" size={19} /><h2 className="h3">AI engine</h2></span>
+          <span className="eyebrow">{status === null ? 'checking…' : status.ready ? `${status.providers.filter((p) => p.configured).length} connected` : 'none connected'}</span></div>
+        <p className="small muted">Answers anything the built-in library doesn’t cover. “Auto” uses the first connected engine and switches if one fails.</p>
+        <div className="row wrap" style={{ gap: 8 }} role="group" aria-label="AI engine">
+          <button className="chip tap" aria-pressed={ai.provider === 'auto'} onClick={() => setAi({ ...ai, provider: 'auto' })}>Auto</button>
+          {(status?.providers ?? []).map((p) => (
+            <button key={p.id} className="chip tap" aria-pressed={ai.provider === p.id} disabled={!p.configured}
+              onClick={() => setAi({ ...ai, provider: p.id })} style={p.configured ? undefined : { opacity: 0.45 }}
+              title={p.configured ? p.model : 'Add this provider’s API key on the server to enable it'}>
+              <span className="dot" style={{ background: p.configured ? 'var(--good)' : 'var(--text-3)' }} />{p.label}
+            </button>
+          ))}
+        </div>
+        {status && !status.ready && <p className="tiny faint">No AI keys on the server yet — add one in <span className="num">.env.local</span> or in Vercel’s Environment Variables (see README).</p>}
+        {(status?.needsCode || ai.code) && (
+          <label className="stack" style={{ gap: 6 }}>
+            <span className="small" style={{ fontWeight: 600 }}>Access code</span>
+            <input type="password" value={ai.code} onChange={(e) => setAi({ ...ai, code: e.target.value })} placeholder="Ask the person who set up this app"
+              className="chip tap" style={{ border: 0, outline: 0, width: '100%' }} autoComplete="off" />
+          </label>
+        )}
+      </GlassCard>
+
       <Link to="/kit" className="small muted" style={{ textAlign: 'center', minHeight: 44 }}>View the component kit →</Link>
     </div>
   );

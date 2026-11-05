@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { BackBar, GlassCard } from '../components/kit';
+import { AiNote, AiTag, BackBar, FrostedSkeleton, GlassCard } from '../components/kit';
+import type { MealItem } from '../data/types';
+import { runTask, toContext, toMeals, useAiStatus, type MealPlanAIT } from '../lib/ai';
 import { Icon, PortionIcon } from '../components/Icon';
 import { mealPlan } from '../data/content';
 import { useStore } from '../lib/store';
@@ -29,7 +31,27 @@ export default function MealPlan() {
   const [diet, setDiet] = useState([profile.diet.toLowerCase().startsWith('veg') ? 'veg' : 'nonveg']);
   const [conds, setConds] = useState(['None']);
   const [act, setAct] = useState(['Light']);
-  const plan = mealPlan[diet[0]] ?? mealPlan.veg;
+  const status = useAiStatus();
+  const { ai } = useStore();
+  const [aiPlan, setAiPlan] = useState<{ items: MealItem[]; tip: string; by: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const plan = aiPlan?.items ?? mealPlan[diet[0]] ?? mealPlan.veg;
+  const dietLabel = DIETS.find((d) => d[0] === diet[0])?.[1] ?? 'Veg';
+  const next = async () => {
+    if (step < steps.length - 1) { setStep(step + 1); return; }
+    setStep(step + 1);
+    setAiPlan(null); setErr('');
+    if (!status?.ready) return;
+    setLoading(true);
+    const r = await runTask<MealPlanAIT>('mealplan', {
+      plan: { goal: goal[0], diet: dietLabel, conditions: conds.filter((c) => c !== 'None'), activity: act[0] },
+      profile: toContext(profile),
+    }, ai);
+    setLoading(false);
+    if (r.ok) setAiPlan({ ...toMeals(r.data), by: r.providerLabel });
+    else setErr(r.message ?? 'Showing a standard plan instead.');
+  };
   const totals = plan.reduce((t, m) => ({ p: t.p + m.protein, f: t.f + m.fibre }), { p: 0, f: 0 });
 
   const steps = [
@@ -49,7 +71,7 @@ export default function MealPlan() {
           {steps[step].el}
           <div className="row">
             {step > 0 && <button className="btn btn-ghost" onClick={() => setStep(step - 1)}>Back</button>}
-            <button className="btn btn-primary grow" onClick={() => setStep(step + 1)}>{step === steps.length - 1 ? 'Show my day' : 'Next'}<Icon name="arrowRight" size={18} /></button>
+            <button className="btn btn-primary grow" onClick={next}>{step === steps.length - 1 ? 'Show my day' : 'Next'}<Icon name="arrowRight" size={18} /></button>
           </div>
         </GlassCard>
       </div>
@@ -64,7 +86,10 @@ export default function MealPlan() {
         <div className="row wrap" style={{ gap: 8 }}>
           {[goal[0], DIETS.find((d) => d[0] === diet[0])?.[1], ...conds.filter((c) => c !== 'None'), act[0]].map((t) => <span key={t} className="chip">{t}</span>)}
         </div>
+        {aiPlan && <div className="row between"><AiTag provider={aiPlan.by} /><span className="illus">made for you</span></div>}
+        {err && <p className="small" style={{ color: 'var(--moderate)' }}>{err}</p>}
       </header>
+      {loading && <GlassCard className="pad-lg stack"><span className="eyebrow">Planning your day…</span><FrostedSkeleton lines={5} height={14} /></GlassCard>}
 
       <div className="two-col wide-left">
         <ol className="timeline">
@@ -95,7 +120,7 @@ export default function MealPlan() {
           </GlassCard>
           <GlassCard className="pad-lg stack" tint="good">
             <div className="row"><Icon name="leaf" size={20} style={{ color: 'var(--good)' }} /><h2 className="h3">Habits over crash diets</h2></div>
-            <p className="small">Pick one change for two weeks — like adding a katori of dal or curd to lunch. Small swaps you keep beat a strict plan you drop on day five.</p>
+            <p className="small">{aiPlan?.tip ?? 'Pick one change for two weeks — like adding a katori of dal or curd to lunch. Small swaps you keep beat a strict plan you drop on day five.'}</p>
           </GlassCard>
           <GlassCard className="pad stack">
             <span className="eyebrow">Portion guide</span>
@@ -105,6 +130,7 @@ export default function MealPlan() {
               ))}
             </div>
           </GlassCard>
+          {aiPlan && <AiNote />}
           <p className="tiny faint">A sample, not a prescription. With diabetes, kidney disease or pregnancy, check portions with your doctor or dietitian.</p>
         </div>
       </div>

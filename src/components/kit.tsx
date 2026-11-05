@@ -415,3 +415,22 @@ export function Disclaimer() {
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ AI tag --- */
+export function AiTag({ provider, confidence }: { provider: string; confidence?: 'high' | 'medium' | 'low' }) {
+  return (
+    <span className="evidence" style={{ '--ec': 'var(--accent)' } as CSSProperties} title="Written by AI">
+      <Icon name="spark" size={12} stroke={2.2} style={{ color: 'var(--accent)' }} />
+      AI · {provider}{confidence && confidence !== 'high' ? ` · ${confidence} confidence` : ''}
+    </span>
+  );
+}
+
+export function AiNote({ children }: { children?: ReactNode }) {
+  return (
+    <p className="tiny faint row" style={{ alignItems: 'flex-start', gap: 6 }}>
+      <Icon name="info" size={14} style={{ flex: 'none', marginTop: 2 }} />
+      <span>{children ?? 'Written by AI from typical values — it can be wrong. Check the numbers on your pack, and ask your doctor before changing anything medical.'}</span>
+    </p>
+  );
+}
